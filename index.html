@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>纯净点阵手账 · 多本管理与交互笔记</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --desk-bg: #ece9e2;
+      --cover-color: #5c7438;
+      --elastic-color: #475c2b;
+      --cover-shadow: rgba(28, 33, 26, 0.28);
+      --paper-cream: #faf8f2;
+      --dot-color: rgba(90, 85, 75, 0.2);
+      --ink-color: #1a1e1b;
+      --bujo-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--desk-bg);
+      background-image: 
+        radial-gradient(circle at 50% 12%, rgba(255,255,255,0.75) 0%, transparent 60%),
+        linear-gradient(180deg, #eeebe4 0%, #dbd7ce 100%);
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      font-family: var(--bujo-font);
+      color: #2b2f2c;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    /* 主舞台 (居中放置手账) */
+    main.notebook-stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: calc(var(--safe-top) + 10px) 14px 146px 14px;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    /* -------------------------------------------------------------
+       1. 封面视图 (无腰封长条，只留美观方块标签，提示语精简为"轻触翻开")
+       ------------------------------------------------------------- */
+    .mobile-cover-card {
+      width: 100%;
+      max-width: 335px;
+      height: 485px;
+      background-color: var(--cover-color);
+      border-radius: 6px 18px 18px 6px;
+      position: relative;
+      box-shadow: 
+        -8px 0 20px rgba(0,0,0,0.22),
+        10px 18px 36px var(--cover-shadow),
+        inset 4px 0 10px rgba(255,255,255,0.2),
+        inset -6px -6px 14px rgba(0,0,0,0.32);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+    }
+
+    .cover-texture {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 4px 4px;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .cover-texture.linen {
+      background-image: 
+        repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 1px, transparent 1px, transparent 3px),
+        repeating-linear-gradient(-45deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px);
+    }
+
+    .spine-crease {
+      position: absolute;
+      left: 24px;
+      top: 0;
+      bottom: 0;
+      width: 3.5px;
+      background: rgba(0, 0, 0, 0.22);
+      box-shadow: -1px 0 3px rgba(0,0,0,0.25), 1px 0 2px rgba(255,255,255,0.15);
+      border-radius: 2px;
+    }
+
+    .elastic-band {
+      position: absolute;
+      right: 32px;
+      top: -2px;
+      bottom: -2px;
+      width: 17px;
+      background-color: var(--elastic-color);
+      border-radius: 2px;
+      box-shadow: -2px 0 5px rgba(0,0,0,0.32), 2px 0 5px rgba(0,0,0,0.32);
+      z-index: 20;
+    }
+
+    .pen-loop {
+      position: absolute;
+      right: -12px;
+      top: 96px;
+      width: 14px;
+      height: 56px;
+      background-color: var(--elastic-color);
+      border-radius: 0 4px 4px 0;
+      box-shadow: 2px 3px 6px rgba(0,0,0,0.25);
+    }
+
+    .bookmark-ribbons {
+      position: absolute;
+      bottom: -26px;
+      left: 64px;
+      display: flex;
+      gap: 8px;
+      z-index: -1;
+    }
+
+    .ribbon-strip {
+      width: 11px;
+      height: 38px;
+      border-radius: 0 0 2px 2px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.22);
+    }
+
+    .ribbon-1 {
+      background: repeating-linear-gradient(45deg, #dfdacd, #dfdacd 3px, #475c2b 3px, #475c2b 6px);
+      transform: rotate(-4deg);
+    }
+
+    .ribbon-2 {
+      background: #dfdacd;
+      transform: rotate(5deg);
+    }
+
+    /* 黄金分割美观方块标签 */
+    .cover-square-label {
+      width: 156px;
+      height: 108px;
+      background: #fbf9f4;
+      border: 1px solid #8e8779;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+      padding: 5px;
+      border-radius: 3px;
+      position: relative;
+      margin-top: -38px;
+      cursor: pointer;
+      user-select: text;
+      transition: transform 0.2s ease;
+      z-index: 25;
+    }
+
+    .cover-square-label:active {
+      transform: scale(0.98);
+    }
+
+    .square-label-border {
+      width: 100%;
+      height: 100%;
+      border: 1px solid #b0a89a;
+      background: #faf7ee;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .label-title {
+      font-family: 'Cinzel', var(--bujo-font);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #2b2823;
+      outline: none;
+    }
+
+    .label-divider {
+      width: 32px;
+      height: 1px;
+      background: #c2baa9;
+      margin: 6px 0;
+    }
+
+    .label-subtitle {
+      font-family: 'Lora', var(--bujo-font);
+      font-size: 9.5px;
+      font-style: italic;
+      color: #787063;
+      outline: none;
+    }
+
+    /* 封面提示语：精简为"轻触翻开" */
+    .cover-tap-tip {
+      position: absolute;
+      bottom: 22px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #ffffff;
+      padding: 5px 14px;
+      border-radius: 14px;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      pointer-events: none;
+    }
+
+    /* -------------------------------------------------------------
+       2. 点阵内页展示：默认打开当天 (Day视图) + 正常打字 + 图片适当居中 + 待办叉号
+       ------------------------------------------------------------- */
+    .mobile-page-card {
+      display: none;
+      width: 100%;
+      max-width: 365px;
+      height: 100%;
+      max-height: 590px;
+      background-color: var(--cover-color);
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.24);
+      flex-direction: column;
+      position: relative;
+    }
+
+    .mobile-paper-sheet {
+      flex: 1;
+      width: 100%;
+      background: var(--paper-cream);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 14px 10px 14px;
+      box-shadow: inset 0 0 12px rgba(0,0,0,0.06);
+      position: relative;
+      /* 点阵背景 */
+      background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.2px);
+      background-size: 24px 24px;
+      background-position: 12px 12px;
+      overflow: hidden;
+    }
+
+    /* 内页顶部：仅保留"合上手账"，统一子弹笔记字体 */
+    .inner-page-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      padding-bottom: 7px;
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn-close-only {
+      background: transparent;
+      border: none;
+      font-family: var(--bujo-font);
+      font-size: 12px;
+      font-weight: 600;
+      color: #6a665d;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      padding: 2px 0;
+      display: inline-flex;
+      align-items: center;
+      transition: opacity 0.2s;
+    }
+
+    .btn-close-only:active {
+      opacity: 0.6;
+    }
+
+    /* 标题区与日期导航 */
+    .bujo-title-section {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin: 4px 0 8px 0;
+      flex-shrink: 0;
+    }
+
+    .bujo-title-left .bujo-subheading {
+      font-size: 11px;
+      color: #797163;
+      font-weight: 500;
+      font-family: var(--bujo-font);
+    }
+
+    .bujo-title-left h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1e1b;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      font-family: var(--bujo-font);
+    }
+
+    .bujo-date-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #49453e;
+      font-size: 14px;
+    }
+
+    .nav-arrow-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: rgba(0,0,0,0.04);
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-arrow-btn:active {
+      background: rgba(0,0,0,0.12);
+    }
+
+    /* 滚动区 */
+    .bujo-entries-container {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 2px;
+      scrollbar-width: thin;
+    }
+
+    /* 每日模块 (在周模式下显示) */
+    .bujo-day-block {
+      display: flex;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding: 9px 0;
+      min-height: 58px;
+    }
+
+    .bujo-day-block:last-child {
+      border-bottom: none;
+    }
+
+    .day-date-col {
+      width: 48px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 2px;
+      font-family: var(--bujo-font);
+      cursor: pointer;
+    }
+
+    .day-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #3b3f3c;
+    }
+
+    .day-num {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1e1b;
+      line-height: 1.15;
+    }
+
+    .day-month {
+      font-size: 9px;
+      color: #797163;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .day-date-col.active-selected {
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      padding: 4px 2px;
+      width: 46px;
+    }
+
+    .day-content-area {
+      flex: 1;
+      padding-left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* 正常打字输入区 */
+    .free-typing-editor {
+      min-height: 24px;
+      outline: none;
+      font-family: var(--bujo-font);
+      font-size: 13.5px;
+      line-height: 24px;
+      color: var(--ink-color);
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .free-typing-editor:empty:before {
+      content: attr(data-placeholder);
+      color: rgba(140, 135, 125, 0.45);
+      font-style: italic;
+    }
+
+    /* 待办列表区 */
+    .todo-list-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bujo-item-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      font-size: 13.5px;
+      line-height: 20px;
+      color: var(--ink-color);
+      position: relative;
+      font-family: var(--bujo-font);
+    }
+
+    /* 待办完成使用叉号 × */
+    .bujo-symbol-badge {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 16px;
+      flex-shrink: 0;
+      border-radius: 4px;
+      user-select: none;
+      transition: transform 0.15s ease;
+    }
+
+    .bujo-symbol-badge:active {
+      transform: scale(1.3);
+    }
+
+    .sym-task { color: #1f2320; }
+    .sym-done { color: #b8332a; font-size: 15px; font-weight: 900; }
+    .sym-migrated { color: #c46816; font-size: 13.5px; }
+    .sym-event { color: #235ea4; font-size: 14px; }
+    .sym-note { color: #797163; font-size: 16px; }
+
+    .bujo-item-text {
+      flex: 1;
+      outline: none;
+      word-break: break-word;
+      min-height: 20px;
+      font-family: var(--bujo-font);
+      font-size: 13.5px;
+      line-height: 20px;
+    }
+
+    .bujo-item-text.done {
+      text-decoration: line-through;
+      color: #8c877d;
+    }
+
+    .bujo-item-del {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #a8a090;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .bujo-item-del:hover, .bujo-item-del:active {
+      color: #d94343;
+      background: rgba(217, 67, 67, 0.1);
+    }
+
+    /* 【插入图片优化】：尺寸适当，居中展示，拍立得手账边框质感 */
+    .journal-photos-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 10px 0;
+      width: 100%;
+    }
+
+    .journal-photo-item {
+      position: relative;
+      width: 100%;
+      max-width: 275px; /* 适当的居中比例 */
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.13);
+      border: 3px solid #ffffff;
+      background: #ffffff;
+      margin: 0 auto;
+    }
+
+    .journal-photo-item img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 7px;
+    }
+
+    .journal-photo-del {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      background: rgba(0,0,0,0.65);
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* 底部控制区：【仅保留日和星期】，以及 (+) 添加待办 与 🖼️ 插入图片按钮 */
+    .bujo-footer-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 8px;
+      margin-top: 4px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .bujo-pill-selector {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 3px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .bujo-pill-btn {
+      border: none;
+      background: transparent;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #615a4f;
+      border-radius: 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-family: var(--bujo-font);
+    }
+
+    .bujo-pill-btn.active {
+      background: #ffffff;
+      color: #1a1e1b;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+
+    .footer-action-btns {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-insert-img {
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 19px;
+      background: #f0ece3;
+      border: 1px solid #dcd7ca;
+      font-size: 13px;
+      font-weight: 600;
+      color: #3b3e3b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--bujo-font);
+    }
+
+    .btn-insert-img:active {
+      background: #e2ded4;
+    }
+
+    .bujo-fab-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #1a1e1b;
+      color: #ffffff;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 300;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .bujo-fab-btn:active {
+      transform: scale(0.92);
+    }
+
+    #hiddenImageInput {
+      display: none;
+    }
+
+    /* -------------------------------------------------------------
+       3. 页面下方专属操作栏 (新增【📚 手账本管理与新建】+ 50色 + 保存图片)
+       ------------------------------------------------------------- */
+    .mobile-bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding-bottom: max(var(--safe-bottom), 10px);
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      box-shadow: 0 -4px 18px rgba(0,0,0,0.06);
+    }
+
+    .palette-cat-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px 14px 4px 14px;
+      scrollbar-width: none;
+    }
+    .palette-cat-row::-webkit-scrollbar { display: none; }
+
+    .cat-btn {
+      flex-shrink: 0;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6a6e6a;
+      border: 1px solid #dfdad0;
+      border-radius: 12px;
+      background: #faf9f6;
+      cursor: pointer;
+      font-family: var(--bujo-font);
+    }
+
+    .cat-btn.active {
+      background: #2b332c;
+      color: #ffffff;
+      border-color: #2b332c;
+    }
+
+    .colors-scroll-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 6px 14px 8px 14px;
+      scrollbar-width: none;
+    }
+    .colors-scroll-row::-webkit-scrollbar { display: none; }
+
+    .swatch-item {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+      flex-shrink: 0;
+      position: relative;
+      transition: transform 0.15s ease;
+    }
+
+    .swatch-item:active {
+      transform: scale(1.15);
+    }
+
+    .swatch-item.active {
+      outline: 2.5px solid #2b332c;
+      outline-offset: 1.5px;
+    }
+
+    .bottom-main-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 14px 2px 14px;
+    }
+
+    .left-controls-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-tool-chip {
+      height: 36px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid #dcd7ca;
+      background: #f7f6f2;
+      color: #3b3e3b;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      font-family: var(--bujo-font);
+    }
+
+    .btn-save-image {
+      height: 38px;
+      padding: 0 16px;
+      background: linear-gradient(135deg, #2b332c 0%, #171c18 100%);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      font-family: var(--bujo-font);
+    }
+
+    .btn-save-image:active {
+      transform: scale(0.96);
+    }
+
+    /* 弹窗通用样式 */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 200;
+    }
+
+    .modal-box {
+      background: #ffffff;
+      width: 100%;
+      max-width: 320px;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 16px 32px rgba(0,0,0,0.25);
+    }
+
+    .dialog-input {
+      width: 100%;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid #d5d1c5;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 10px;
+      font-family: var(--bujo-font);
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    /* 【新建与切换手账本】弹窗专属样式 */
+    .books-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      margin: 12px 0;
+    }
+
+    .book-item-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #e5e2da;
+      background: #faf9f6;
+      cursor: pointer;
+    }
+
+    .book-item-card.active {
+      border-color: #2b332c;
+      background: #f0eee8;
+    }
+
+    .book-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .book-color-indicator {
+      width: 16px;
+      height: 22px;
+      border-radius: 2px 4px 4px 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .btn-create-book {
+      width: 100%;
+      height: 38px;
+      background: #2b332c;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    /* 图片预览弹窗 */
+    .save-preview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 300;
+    }
+
+    .save-preview-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      max-width: 320px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .save-preview-card img {
+      max-width: 100%;
+      max-height: 380px;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      margin: 12px 0;
+    }
+
+    .save-preview-card p {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+      font-family: var(--bujo-font);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 主手账展示舞台 -->
+  <main class="notebook-stage">
+
+    <!-- 1. 封面视图 (无腰封长条，只留美观方块标签，提示语精简为"轻触翻开") -->
+    <div class="mobile-cover-card" id="coverCard" title="轻触翻开手账">
+      <div class="cover-texture" id="coverTexture"></div>
+      <div class="spine-crease"></div>
+      <div class="pen-loop" id="penLoop"></div>
+      <div class="elastic-band" id="elasticBand"></div>
+
+      <div class="bookmark-ribbons">
+        <div class="ribbon-strip ribbon-1"></div>
+        <div class="ribbon-strip ribbon-2"></div>
+      </div>
+
+      <!-- 黄金分割经典方块标签 -->
+      <div class="cover-square-label" id="squareLabel" title="点击修改标签文字">
+        <div class="square-label-border">
+          <div class="label-title" id="labelTitleText">BULLET JOURNAL</div>
+          <div class="label-divider"></div>
+          <div class="label-subtitle" id="labelSubtitleText">2026 · PERSONAL LOG</div>
+        </div>
+      </div>
+
+      <!-- 提示语精简为"轻触翻开" -->
+      <div class="cover-tap-tip">轻触翻开</div>
+    </div>
+
+    <!-- 2. 点阵内页展示 (【默认打开当天 (Day视图)】+ 正常打字 + 图片居中 + 待办叉号) -->
+    <div class="mobile-page-card" id="pageCard">
+      <div class="mobile-paper-sheet">
+        
+        <!-- 内页顶部：【仅保留"合上手账"】，字体风格统一为子弹笔记字体 -->
+        <div class="inner-page-header">
+          <button class="btn-close-only" id="btnCloseCover">合上手账</button>
+        </div>
+
+        <!-- 标题区 (默认呈现当天 Day 视图，可前后切换天数) -->
+        <div class="bujo-title-section">
+          <div class="bujo-title-left">
+            <div class="bujo-subheading" id="viewSubhead">Today · 2026</div>
+            <h2 id="viewHeading">Wednesday, Sep 30</h2>
+          </div>
+          <div class="bujo-date-nav">
+            <button class="nav-arrow-btn" id="btnPrevDate" title="前一天/上一周">&lt;</button>
+            <button class="nav-arrow-btn" id="btnNextDate" title="后一天/下一周">&gt;</button>
+            <span style="font-size: 13px;">📅</span>
+          </div>
+        </div>
+
+        <!-- 互动子弹笔记主列表 (0预设，正常打字 + 加号待办 + 居中图片) -->
+        <div class="bujo-entries-container" id="bujoEntriesContainer"></div>
+
+        <!-- 底部控制栏：【仅保留日和星期】，以及 (+) 添加待办 与 🖼️ 插入图片按钮 -->
+        <div class="bujo-footer-controls">
+          <div class="bujo-pill-selector">
+            <!-- 默认高亮并展示：日 (Day) 当天 -->
+            <button class="bujo-pill-btn active" data-view="day">日 (Day)</button>
+            <button class="bujo-pill-btn" data-view="week">星期 (Week)</button>
+          </div>
+
+          <div class="footer-action-btns">
+            <!-- 插入图片按钮 -->
+            <button class="btn-insert-img" id="btnUploadImage" title="向手账插入照片">🖼️ 图片</button>
+            <!-- 黑色圆形 (+) 添加待办事项按钮 -->
+            <button class="bujo-fab-btn" id="btnFabAdd" title="添加待办事项">+</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 隐藏的文件上传 input -->
+  <input type="file" id="hiddenImageInput" accept="image/*">
+
+  <!-- 页面下方专属操作栏 (新增【📚 手账本管理与新建】+ 50色 + 保存图片) -->
+  <footer class="mobile-bottom-bar">
+    
+    <div class="palette-cat-row">
+      <button class="cat-btn active" data-cat="all">全部 (50色)</button>
+      <button class="cat-btn" data-cat="morandi">莫兰迪低饱和 (10)</button>
+      <button class="cat-btn" data-cat="vintage">复古皮革文具 (10)</button>
+      <button class="cat-btn" data-cat="macaron">甜美马卡龙 (10)</button>
+      <button class="cat-btn" data-cat="japan">日系和风古典 (10)</button>
+      <button class="cat-btn" data-cat="vibrant">现代明艳与布面 (10)</button>
+    </div>
+
+    <div class="colors-scroll-row" id="colorsContainer"></div>
+
+    <div class="bottom-main-actions">
+      <div class="left-controls-group">
+        <!-- 【新功能】：多手账本管理与新建 -->
+        <button class="btn-tool-chip" id="btnOpenBooksManager">📚 手账本</button>
+        <button class="btn-tool-chip" id="btnEditLabelModal">🏷️ 改标签</button>
+      </div>
+
+      <button class="btn-save-image" id="btnSaveImage">
+        <span>📸</span>
+        <span>保存为图片</span>
+      </button>
+    </div>
+
+  </footer>
+
+  <!-- 1. 手账本管理与新建弹窗 (多手账本系统) -->
+  <div class="modal-overlay" id="booksModal">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size: 15px;">📚 我的手账本</h3>
+        <span id="btnCloseBooksModal" style="cursor:pointer; font-size:18px; color:#888;">×</span>
+      </div>
+
+      <div class="books-list" id="booksListContainer"></div>
+
+      <button class="btn-create-book" id="btnShowCreateNewBook">+ 新建一本新手账</button>
+    </div>
+  </div>
+
+  <!-- 2. 新建手账本输入框弹窗 -->
+  <div class="modal-overlay" id="createBookModal">
+    <div class="modal-box">
+      <h3 style="font-size: 15px; margin-bottom: 12px;">✨ 新建手账本</h3>
+      <input type="text" class="dialog-input" id="inputNewBookTitle" placeholder="手账主标题 (如 读书手账 / 工作笔记)" value="MY NEW JOURNAL">
+      <input type="text" class="dialog-input" id="inputNewBookSub" placeholder="副标题 / 年份" value="2026 · DAILY NOTE">
+      <div class="dialog-actions">
+        <button class="btn-tool-chip" id="btnCancelCreateBook">取消</button>
+        <button class="btn-tool-chip" style="background:#2b332c; color:#fff;" id="btnConfirmCreateBook">立即创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 标签修改弹窗 -->
+  <div class="modal-overlay" id="labelDialog">
+    <div class="modal-box">
+      <h3 style="font-size: 15px; margin-bottom: 12px;">🏷️ 自定义当前手账标签</h3>
+      <input type="text" class="dialog-input" id="inputLabelTitle" placeholder="标签标题" value="BULLET JOURNAL">
+      <input type="text" class="dialog-input" id="inputLabelSub" placeholder="副标题" value="2026 · PERSONAL LOG">
+      <div class="dialog-actions">
+        <button class="btn-tool-chip" id="btnCancelDialog">取消</button>
+        <button class="btn-tool-chip" style="background:#2b332c; color:#fff;" id="btnSaveDialog">更新标签</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 图片保存完成弹窗 -->
+  <div class="save-preview-modal" id="savePreviewModal">
+    <div class="save-preview-card">
+      <h3 style="font-size: 15px; font-weight: 600;">✨ 手账图片已生成</h3>
+      <img id="previewImg" src="" alt="手账页面预览">
+      <p>图片已自动下载；长按上方图片也可存入系统相册。</p>
+      <button class="btn-save-image" id="btnClosePreviewModal" style="width: 100%; justify-content: center;">完成</button>
+    </div>
+  </div>
+
+  <script>
+    // 50 种高质感封面色彩配置
+    const PALETTES = [
+      // 1. 莫兰迪低饱和系列 (10)
+      { cat: "morandi", name: "鼠尾草绿", color: "#5c7438", elastic: "#475c2b" },
+      { cat: "morandi", name: "灰豆青", color: "#76877d", elastic: "#5b6b61" },
+      { cat: "morandi", name: "雾霾灰蓝", color: "#739399", elastic: "#547177" },
+      { cat: "morandi", name: "烟熏灰紫", color: "#7d6b7d", elastic: "#5e4e5e" },
+      { cat: "morandi", name: "落日灰粉", color: "#c28d9b", elastic: "#9e6f7c" },
+      { cat: "morandi", name: "燕麦奶咖", color: "#b8a690", elastic: "#94836f" },
+      { cat: "morandi", name: "灰陶泥褐", color: "#8c7e73", elastic: "#6e6258" },
+      { cat: "morandi", name: "冷灰岩石", color: "#6e7373", elastic: "#525757" },
+      { cat: "morandi", name: "灰芥末黄", color: "#a39b5b", elastic: "#807a41" },
+      { cat: "morandi", name: "苍艾草青", color: "#829175", elastic: "#657359" },
+
+      // 2. 复古文具与经典皮革系列 (10)
+      { cat: "vintage", name: "焦糖红棕", color: "#8a4726", elastic: "#663116" },
+      { cat: "vintage", name: "马鞍鞍皮", color: "#a05b32", elastic: "#7a4220" },
+      { cat: "vintage", name: "勃艮第红", color: "#6e1d28", elastic: "#4f111a" },
+      { cat: "vintage", name: "英伦墨绿", color: "#1f3b2b", elastic: "#13261b" },
+      { cat: "vintage", name: "深海墨蓝", color: "#182c44", elastic: "#0d1b2b" },
+      { cat: "vintage", name: "雪茄深褐", color: "#42281d", elastic: "#2b1810" },
+      { cat: "vintage", name: "复古姜黄", color: "#ba7d27", elastic: "#8c5b16" },
+      { cat: "vintage", name: "暗夜红木", color: "#521e1e", elastic: "#3b1212" },
+      { cat: "vintage", name: "深苔藓绿", color: "#334224", elastic: "#222e16" },
+      { cat: "vintage", name: "经典墨黑", color: "#1e2022", elastic: "#111213" },
+
+      // 3. 甜美马卡龙与多巴胺粉彩 (10)
+      { cat: "macaron", name: "樱花浅粉", color: "#e89eb7", elastic: "#be768f" },
+      { cat: "macaron", name: "千禧草莓粉", color: "#df7a9d", elastic: "#b55879" },
+      { cat: "macaron", name: "香草奶油黄", color: "#e8cb74", elastic: "#bda04a" },
+      { cat: "macaron", name: "海盐冰川蓝", color: "#9ec3d5", elastic: "#769db0" },
+      { cat: "macaron", name: "薄荷苏打绿", color: "#8ecbb0", elastic: "#6aa88d" },
+      { cat: "macaron", name: "蜜桃乌龙橘", color: "#e8997a", elastic: "#bf7354" },
+      { cat: "macaron", name: "香芋薰衣草", color: "#b89ec9", elastic: "#947ba5" },
+      { cat: "macaron", name: "开心果嫩绿", color: "#a4cc7e", elastic: "#7fa858" },
+      { cat: "macaron", name: "浅杏奶桃", color: "#e0ab92", elastic: "#b8836b" },
+      { cat: "macaron", name: "晨露淡青", color: "#a2c4b8", elastic: "#7aa093" },
+
+      // 4. 日系和风古典传统色 (10)
+      { cat: "japan", name: "抹茶浓绿", color: "#4b572a", elastic: "#343d1a" },
+      { cat: "japan", name: "若竹青翠", color: "#598a69", elastic: "#3e694c" },
+      { cat: "japan", name: "古染琉璃青", color: "#2d526e", elastic: "#1d384d" },
+      { cat: "japan", name: "山吹暖金", color: "#c78c2e", elastic: "#9e6c1c" },
+      { cat: "japan", name: "朱砂古红", color: "#a6332a", elastic: "#7d211a" },
+      { cat: "japan", name: "藤紫幽兰", color: "#5e4566", elastic: "#432f4a" },
+      { cat: "japan", name: "利休灰茶", color: "#6e6552", elastic: "#524a3a" },
+      { cat: "japan", name: "琥珀熟黄", color: "#b57224", elastic: "#875215" },
+      { cat: "japan", name: "青竹黛色", color: "#284d4b", elastic: "#193331" },
+      { cat: "japan", name: "古柿深赤", color: "#913b2c", elastic: "#6e291d" },
+
+      // 5. 现代明艳与质感布面 (10)
+      { cat: "vibrant", name: "皇家浆果紫", color: "#6a1a5b", elastic: "#4e1343" },
+      { cat: "vibrant", name: "克莱因极蓝", color: "#133ea3", elastic: "#0b2669" },
+      { cat: "vibrant", name: "包豪斯明黄", color: "#db9c0d", elastic: "#a87504" },
+      { cat: "vibrant", name: "纯粹正洋红", color: "#b82352", elastic: "#8c143a" },
+      { cat: "vibrant", name: "活力落日橙", color: "#d9571e", elastic: "#a63c0f" },
+      { cat: "vibrant", name: "孔雀松石绿", color: "#1b756b", elastic: "#10524a" },
+      { cat: "vibrant", name: "地中海群青", color: "#246194", elastic: "#16446b" },
+      { cat: "vibrant", name: "亚麻粗布粉", color: "#b56c7a", elastic: "#924e5b", texture: "linen" },
+      { cat: "vibrant", name: "亚麻橄榄布", color: "#636d4f", elastic: "#4a5438", texture: "linen" },
+      { cat: "vibrant", name: "暗银冷金属", color: "#4a5054", elastic: "#32373a" }
+    ];
+
+    // 待办完成为叉号 × (Ryder Carroll 标志性标记)
+    const SYMBOL_STATES = [
+      { type: 'task', char: '•', title: '待办事项', css: 'sym-task' },
+      { type: 'done', char: '×', title: '已完成 (叉号)', css: 'sym-done' },
+      { type: 'migrated', char: '>', title: '延期迁移', css: 'sym-migrated' },
+      { type: 'event', char: '○', title: '日程事件', css: 'sym-event' },
+      { type: 'note', char: '—', title: '随记笔记', css: 'sym-note' }
+    ];
+
+    // 多手账本管理系统
+    let appNotebooks = [
+      {
+        id: "book_default",
+        title: "BULLET JOURNAL",
+        sub: "2026 · PERSONAL LOG",
+        coverColor: "#5c7438",
+        elasticColor: "#475c2b",
+        texture: "smooth",
+        data: {}
+      }
+    ];
+    let currentBookId = "book_default";
+
+    // 日期状态：【默认打开当天 (Day 视图)】
+    let currentDate = new Date(2026, 8, 30); // 2026-09-30 (Wed)
+    let currentViewMode = 'day'; // 严格按要求：默认是当天 (Day)，不是周！
+    let selectedDateStr = '2026-09-30';
+
+    const root = document.documentElement;
+    const coverCard = document.getElementById('coverCard');
+    const pageCard = document.getElementById('pageCard');
+    const btnCloseCover = document.getElementById('btnCloseCover');
+    const coverTexture = document.getElementById('coverTexture');
+    const colorsContainer = document.getElementById('colorsContainer');
+    const bujoEntriesContainer = document.getElementById('bujoEntriesContainer');
+    const viewSubhead = document.getElementById('viewSubhead');
+    const viewHeading = document.getElementById('viewHeading');
+    const btnPrevDate = document.getElementById('btnPrevDate');
+    const btnNextDate = document.getElementById('btnNextDate');
+    const hiddenImageInput = document.getElementById('hiddenImageInput');
+    const btnUploadImage = document.getElementById('btnUploadImage');
+    const labelTitleText = document.getElementById('labelTitleText');
+    const labelSubtitleText = document.getElementById('labelSubtitleText');
+
+    function getCurrentBook() {
+      return appNotebooks.find(b => b.id === currentBookId) || appNotebooks[0];
+    }
+
+    function applyBookTheme(book) {
+      labelTitleText.textContent = book.title;
+      labelSubtitleText.textContent = book.sub;
+      root.style.setProperty('--cover-color', book.coverColor);
+      root.style.setProperty('--elastic-color', book.elasticColor || book.coverColor);
+      if (book.texture === 'linen') coverTexture.classList.add('linen');
+      else coverTexture.classList.remove('linen');
+    }
+
+    // 渲染 50 个颜色色块
+    function renderColors(category = 'all') {
+      colorsContainer.innerHTML = '';
+      const list = (category === 'all') ? PALETTES : PALETTES.filter(p => p.cat === category);
+
+      list.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'swatch-item';
+        div.style.backgroundColor = item.color;
+        div.title = item.name;
+
+        div.addEventListener('click', () => {
+          document.querySelectorAll('.swatch-item').forEach(s => s.classList.remove('active'));
+          div.classList.add('active');
+
+          const book = getCurrentBook();
+          book.coverColor = item.color;
+          book.elasticColor = item.elastic || item.color;
+          book.texture = item.texture || 'smooth';
+          applyBookTheme(book);
+          saveAllNotebooks();
+        });
+
+        colorsContainer.appendChild(div);
+      });
+    }
+
+    renderColors('all');
+
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderColors(btn.getAttribute('data-cat'));
+      });
+    });
+
+    // 翻开 / 合上手账
+    function toggleBook(open) {
+      if (open) {
+        coverCard.style.display = 'none';
+        pageCard.style.display = 'flex';
+        renderBujoView();
+      } else {
+        pageCard.style.display = 'none';
+        coverCard.style.display = 'flex';
+      }
+    }
+
+    coverCard.addEventListener('click', (e) => {
+      if (e.target.closest('#squareLabel')) return;
+      toggleBook(true);
+    });
+
+    btnCloseCover.addEventListener('click', () => toggleBook(false));
+
+    function formatDateKey(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getWeekNumber(d) {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+    }
+
+    // 前后导航按钮
+    btnPrevDate.addEventListener('click', () => {
+      if (currentViewMode === 'week') {
+        currentDate.setDate(currentDate.getDate() - 7);
+      } else {
+        currentDate.setDate(currentDate.getDate() - 1);
+        selectedDateStr = formatDateKey(currentDate);
+      }
+      renderBujoView();
+    });
+
+    btnNextDate.addEventListener('click', () => {
+      if (currentViewMode === 'week') {
+        currentDate.setDate(currentDate.getDate() + 7);
+      } else {
+        currentDate.setDate(currentDate.getDate() + 1);
+        selectedDateStr = formatDateKey(currentDate);
+      }
+      renderBujoView();
+    });
+
+    function getDayData(dateKey) {
+      const book = getCurrentBook();
+      if (!book.data[dateKey]) {
+        book.data[dateKey] = {
+          notes: '',
+          todos: [],
+          images: []
+        };
+      }
+      return book.data[dateKey];
+    }
+
+    // 渲染手账内页 (【默认直接展示当天 Day 视图】)
+    function renderBujoView() {
+      bujoEntriesContainer.innerHTML = '';
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+      if (currentViewMode === 'day') {
+        // 【核心默认页面：当天 (Day 视图)】
+        const d = new Date(selectedDateStr.replace(/-/g, '/'));
+        const weekNum = getWeekNumber(d);
+        viewSubhead.textContent = `Today · Week ${weekNum}`;
+        viewHeading.textContent = `${fullDayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
+
+        const dayData = getDayData(selectedDateStr);
+
+        const dayWrapper = document.createElement('div');
+        dayWrapper.style.display = 'flex';
+        dayWrapper.style.flexDirection = 'column';
+        dayWrapper.style.gap = '10px';
+        dayWrapper.style.padding = '6px 0';
+
+        // 1. 正常打字笔记区 (自由记录日记、想法、随想)
+        const freeEditor = document.createElement('div');
+        freeEditor.className = 'free-typing-editor';
+        freeEditor.contentEditable = "true";
+        freeEditor.spellcheck = false;
+        freeEditor.style.fontSize = '14px';
+        freeEditor.style.minHeight = '50px';
+        freeEditor.setAttribute('data-placeholder', '轻触在此自由打字记录思考、日记与心得...');
+        freeEditor.textContent = dayData.notes;
+
+        freeEditor.addEventListener('input', () => {
+          dayData.notes = freeEditor.textContent;
+          saveAllNotebooks();
+        });
+
+        dayWrapper.appendChild(freeEditor);
+
+        // 2. 居中适当尺寸的插入图片展示区
+        if (dayData.images && dayData.images.length > 0) {
+          const photoBox = document.createElement('div');
+          photoBox.className = 'journal-photos-container';
+
+          dayData.images.forEach((imgSrc, imgIndex) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'journal-photo-item';
+            itemDiv.innerHTML = `
+              <img src="${imgSrc}" alt="手账照片">
+              <div class="journal-photo-del" title="删除图片">×</div>
+            `;
+            itemDiv.querySelector('.journal-photo-del').addEventListener('click', (e) => {
+              e.stopPropagation();
+              dayData.images.splice(imgIndex, 1);
+              renderBujoView();
+              saveAllNotebooks();
+            });
+            photoBox.appendChild(itemDiv);
+          });
+
+          dayWrapper.appendChild(photoBox);
+        }
+
+        // 3. 待办事项列表区 (只有按加号时才添加)
+        if (dayData.todos.length > 0) {
+          const todoHeader = document.createElement('div');
+          todoHeader.style.fontSize = '11px';
+          todoHeader.style.fontWeight = '600';
+          todoHeader.style.color = '#797163';
+          todoHeader.style.marginTop = '4px';
+          todoHeader.textContent = 'TODOS · 待办事项';
+          dayWrapper.appendChild(todoHeader);
+
+          const todoList = document.createElement('div');
+          todoList.className = 'todo-list-wrapper';
+
+          dayData.todos.forEach(todo => {
+            todoList.appendChild(createTodoRow(todo, selectedDateStr));
+          });
+
+          dayWrapper.appendChild(todoList);
+        }
+
+        bujoEntriesContainer.appendChild(dayWrapper);
+
+      } else if (currentViewMode === 'week') {
+        // 星期视图
+        const weekNum = getWeekNumber(currentDate);
+        viewSubhead.textContent = `Week ${weekNum}`;
+        viewHeading.textContent = 'This Week';
+
+        const sunday = new Date(currentDate);
+        sunday.setDate(currentDate.getDate() - currentDate.getDay());
+
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(sunday);
+          d.setDate(sunday.getDate() + i);
+          const dateKey = formatDateKey(d);
+          const isSelected = (dateKey === selectedDateStr);
+          const dayData = getDayData(dateKey);
+
+          const block = document.createElement('div');
+          block.className = 'bujo-day-block';
+
+          // 左侧日期
+          const dateCol = document.createElement('div');
+          dateCol.className = `day-date-col ${isSelected ? 'active-selected' : ''}`;
+          dateCol.innerHTML = `
+            <div class="day-name">${dayNames[i]}</div>
+            <div class="day-num">${d.getDate()}</div>
+            ${(i === 0 || d.getDate() === 1) ? `<div class="day-month">${monthNames[d.getMonth()]}</div>` : ''}
+          `;
+
+          dateCol.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedDateStr = dateKey;
+            renderBujoView();
+          });
+
+          block.appendChild(dateCol);
+
+          // 右侧内容
+          const contentArea = document.createElement('div');
+          contentArea.className = 'day-content-area';
+
+          const freeEditor = document.createElement('div');
+          freeEditor.className = 'free-typing-editor';
+          freeEditor.contentEditable = "true";
+          freeEditor.spellcheck = false;
+          freeEditor.setAttribute('data-placeholder', '轻触自由打字...');
+          freeEditor.textContent = dayData.notes;
+
+          freeEditor.addEventListener('input', () => {
+            dayData.notes = freeEditor.textContent;
+            saveAllNotebooks();
+          });
+
+          contentArea.appendChild(freeEditor);
+
+          // 居中图片
+          if (dayData.images && dayData.images.length > 0) {
+            const photoBox = document.createElement('div');
+            photoBox.className = 'journal-photos-container';
+
+            dayData.images.forEach((imgSrc, imgIndex) => {
+              const itemDiv = document.createElement('div');
+              itemDiv.className = 'journal-photo-item';
+              itemDiv.innerHTML = `
+                <img src="${imgSrc}" alt="手账照片">
+                <div class="journal-photo-del" title="删除图片">×</div>
+              `;
+              itemDiv.querySelector('.journal-photo-del').addEventListener('click', (e) => {
+                e.stopPropagation();
+                dayData.images.splice(imgIndex, 1);
+                renderBujoView();
+                saveAllNotebooks();
+              });
+              photoBox.appendChild(itemDiv);
+            });
+
+            contentArea.appendChild(photoBox);
+          }
+
+          // 待办
+          if (dayData.todos.length > 0) {
+            const todoList = document.createElement('div');
+            todoList.className = 'todo-list-wrapper';
+
+            dayData.todos.forEach(todo => {
+              todoList.appendChild(createTodoRow(todo, dateKey));
+            });
+
+            contentArea.appendChild(todoList);
+          }
+
+          block.addEventListener('click', () => {
+            selectedDateStr = dateKey;
+            document.querySelectorAll('.day-date-col').forEach(c => c.classList.remove('active-selected'));
+            dateCol.classList.add('active-selected');
+          });
+
+          block.appendChild(contentArea);
+          bujoEntriesContainer.appendChild(block);
+        }
+      }
+    }
+
+    // 创建单条待办 (完成为叉号 ×)
+    function createTodoRow(todo, dateKey) {
+      const row = document.createElement('div');
+      row.className = 'bujo-item-row';
+
+      const stateObj = SYMBOL_STATES.find(s => s.type === todo.type) || SYMBOL_STATES[0];
+
+      const symBtn = document.createElement('span');
+      symBtn.className = `bujo-symbol-badge ${stateObj.css}`;
+      symBtn.textContent = stateObj.char;
+      symBtn.title = `状态：${stateObj.title} (轻触切换)`;
+
+      symBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const curIdx = SYMBOL_STATES.findIndex(s => s.type === todo.type);
+        const nextIdx = (curIdx + 1) % SYMBOL_STATES.length;
+        const nextState = SYMBOL_STATES[nextIdx];
+
+        todo.type = nextState.type;
+        symBtn.textContent = nextState.char;
+        symBtn.className = `bujo-symbol-badge ${nextState.css}`;
+        symBtn.title = `状态：${nextState.title} (轻触切换)`;
+
+        if (todo.type === 'done') {
+          textSpan.classList.add('done');
+        } else {
+          textSpan.classList.remove('done');
+        }
+
+        saveAllNotebooks();
+      });
+
+      const textSpan = document.createElement('div');
+      textSpan.className = `bujo-item-text ${todo.type === 'done' ? 'done' : ''}`;
+      textSpan.contentEditable = "true";
+      textSpan.spellcheck = false;
+      textSpan.textContent = todo.text;
+
+      textSpan.addEventListener('input', () => {
+        todo.text = textSpan.textContent;
+        saveAllNotebooks();
+      });
+
+      textSpan.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addNewTodo(dateKey, todo);
+        } else if (e.key === 'Backspace' && textSpan.textContent.trim() === '') {
+          e.preventDefault();
+          deleteTodo(dateKey, todo);
+        }
+      });
+
+      const delBtn = document.createElement('span');
+      delBtn.className = 'bujo-item-del';
+      delBtn.innerHTML = '×';
+      delBtn.title = '删除此待办';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteTodo(dateKey, todo);
+      });
+
+      row.appendChild(symBtn);
+      row.appendChild(textSpan);
+      row.appendChild(delBtn);
+      return row;
+    }
+
+    function addNewTodo(dateKey, afterItem = null) {
+      const dayData = getDayData(dateKey);
+      const newTodo = { id: Date.now(), type: 'task', text: '' };
+
+      if (afterItem) {
+        const idx = dayData.todos.indexOf(afterItem);
+        dayData.todos.splice(idx + 1, 0, newTodo);
+      } else {
+        dayData.todos.push(newTodo);
+      }
+
+      renderBujoView();
+      saveAllNotebooks();
+
+      setTimeout(() => {
+        const inputs = bujoEntriesContainer.querySelectorAll('.bujo-item-text');
+        if (inputs.length > 0) {
+          inputs[inputs.length - 1].focus();
+        }
+      }, 50);
+    }
+
+    function deleteTodo(dateKey, todo) {
+      const dayData = getDayData(dateKey);
+      const idx = dayData.todos.indexOf(todo);
+      if (idx !== -1) {
+        dayData.todos.splice(idx, 1);
+        renderBujoView();
+        saveAllNotebooks();
+      }
+    }
+
+    // 按加号才添加待办
+    document.getElementById('btnFabAdd').addEventListener('click', () => {
+      addNewTodo(selectedDateStr);
+    });
+
+    // 插入图片并居中展示
+    btnUploadImage.addEventListener('click', () => {
+      hiddenImageInput.click();
+    });
+
+    hiddenImageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          const dayData = getDayData(selectedDateStr);
+          if (!dayData.images) dayData.images = [];
+          dayData.images.push(compressedDataUrl);
+
+          renderBujoView();
+          saveAllNotebooks();
+          hiddenImageInput.value = '';
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // 胶囊切换：日 (Day) 与 星期 (Week)
+    document.querySelectorAll('.bujo-pill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.bujo-pill-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentViewMode = btn.getAttribute('data-view');
+        renderBujoView();
+      });
+    });
+
+    // ==============================================================
+    // 【全新功能】：多手账本管理与新建手账本系统
+    // ==============================================================
+    const btnOpenBooksManager = document.getElementById('btnOpenBooksManager');
+    const booksModal = document.getElementById('booksModal');
+    const btnCloseBooksModal = document.getElementById('btnCloseBooksModal');
+    const booksListContainer = document.getElementById('booksListContainer');
+    const btnShowCreateNewBook = document.getElementById('btnShowCreateNewBook');
+    const createBookModal = document.getElementById('createBookModal');
+    const btnCancelCreateBook = document.getElementById('btnCancelCreateBook');
+    const btnConfirmCreateBook = document.getElementById('btnConfirmCreateBook');
+    const inputNewBookTitle = document.getElementById('inputNewBookTitle');
+    const inputNewBookSub = document.getElementById('inputNewBookSub');
+
+    btnOpenBooksManager.addEventListener('click', () => {
+      renderBooksList();
+      booksModal.style.display = 'flex';
+    });
+
+    btnCloseBooksModal.addEventListener('click', () => {
+      booksModal.style.display = 'none';
+    });
+
+    function renderBooksList() {
+      booksListContainer.innerHTML = '';
+      appNotebooks.forEach(b => {
+        const item = document.createElement('div');
+        item.className = `book-item-card ${b.id === currentBookId ? 'active' : ''}`;
+        item.innerHTML = `
+          <div class="book-meta">
+            <div class="book-color-indicator" style="background-color: ${b.coverColor};"></div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">${b.title}</div>
+              <div style="font-size: 10px; color: #888;">${b.sub || '未设置副标题'}</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${b.id === currentBookId ? '<span style="font-size:12px; color:#2b332c; font-weight:700;">使用中</span>' : ''}
+            ${appNotebooks.length > 1 ? `<span class="book-del-btn" style="color:#b8332a; font-size:16px; cursor:pointer;" title="删除此本">×</span>` : ''}
+          </div>
+        `;
+
+        item.addEventListener('click', (e) => {
+          if (e.target.classList.contains('book-del-btn')) {
+            e.stopPropagation();
+            if (confirm(`确定删除手账本 "${b.title}" 吗？`)) {
+              appNotebooks = appNotebooks.filter(bk => bk.id !== b.id);
+              if (currentBookId === b.id) {
+                currentBookId = appNotebooks[0].id;
+              }
+              applyBookTheme(getCurrentBook());
+              renderBujoView();
+              saveAllNotebooks();
+              renderBooksList();
+            }
+            return;
+          }
+
+          currentBookId = b.id;
+          applyBookTheme(b);
+          renderBujoView();
+          saveAllNotebooks();
+          booksModal.style.display = 'none';
+        });
+
+        booksListContainer.appendChild(item);
+      });
+    }
+
+    btnShowCreateNewBook.addEventListener('click', () => {
+      booksModal.style.display = 'none';
+      inputNewBookTitle.value = `BULLET JOURNAL ${appNotebooks.length + 1}`;
+      inputNewBookSub.value = '2026 · PERSONAL LOG';
+      createBookModal.style.display = 'flex';
+      inputNewBookTitle.focus();
+    });
+
+    btnCancelCreateBook.addEventListener('click', () => {
+      createBookModal.style.display = 'none';
+    });
+
+    btnConfirmCreateBook.addEventListener('click', () => {
+      const title = inputNewBookTitle.value.trim() || 'NEW JOURNAL';
+      const sub = inputNewBookSub.value.trim() || '2026';
+      
+      const newBook = {
+        id: "book_" + Date.now(),
+        title: title,
+        sub: sub,
+        coverColor: "#739399", // 默认灰冰蓝
+        elasticColor: "#547177",
+        texture: "smooth",
+        data: {} // 0内容空白手账
+      };
+
+      appNotebooks.push(newBook);
+      currentBookId = newBook.id;
+      applyBookTheme(newBook);
+      renderBujoView();
+      saveAllNotebooks();
+
+      createBookModal.style.display = 'none';
+    });
+
+    // 存储管理
+    function saveAllNotebooks() {
+      try {
+        localStorage.setItem('multi_bujo_books_v8', JSON.stringify(appNotebooks));
+        localStorage.setItem('current_bujo_book_id_v8', currentBookId);
+      } catch(e) {
+        console.warn('LocalStorage error:', e);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedBooks = localStorage.getItem('multi_bujo_books_v8');
+      const savedCurrentId = localStorage.getItem('current_bujo_book_id_v8');
+      if (savedBooks) {
+        try {
+          appNotebooks = JSON.parse(savedBooks);
+          if (savedCurrentId) currentBookId = savedCurrentId;
+        } catch(e){}
+      }
+      applyBookTheme(getCurrentBook());
+    });
+
+    // 封面标签编辑弹窗
+    const labelDialog = document.getElementById('labelDialog');
+    const squareLabel = document.getElementById('squareLabel');
+    const btnEditLabelModal = document.getElementById('btnEditLabelModal');
+    const inputLabelTitle = document.getElementById('inputLabelTitle');
+    const inputLabelSub = document.getElementById('inputLabelSub');
+
+    function openLabelModal(e) {
+      if (e) e.stopPropagation();
+      const book = getCurrentBook();
+      inputLabelTitle.value = book.title;
+      inputLabelSub.value = book.sub;
+      labelDialog.style.display = 'flex';
+      inputLabelTitle.focus();
+    }
+
+    squareLabel.addEventListener('click', openLabelModal);
+    btnEditLabelModal.addEventListener('click', openLabelModal);
+
+    document.getElementById('btnCancelDialog').addEventListener('click', () => labelDialog.style.display = 'none');
+    document.getElementById('btnSaveDialog').addEventListener('click', () => {
+      const book = getCurrentBook();
+      book.title = inputLabelTitle.value.trim() || 'BULLET JOURNAL';
+      book.sub = inputLabelSub.value.trim() || '2026 · PERSONAL LOG';
+      applyBookTheme(book);
+      saveAllNotebooks();
+      labelDialog.style.display = 'none';
+    });
+
+    // 保存为图片
+    const btnSaveImage = document.getElementById('btnSaveImage');
+    const savePreviewModal = document.getElementById('savePreviewModal');
+    const previewImg = document.getElementById('previewImg');
+    const btnClosePreviewModal = document.getElementById('btnClosePreviewModal');
+
+    btnSaveImage.addEventListener('click', async () => {
+      const targetElement = (pageCard.style.display === 'flex') ? pageCard : coverCard;
+      btnSaveImage.textContent = '⏳ 生成中...';
+      btnSaveImage.disabled = true;
+
+      try {
+        if (typeof html2canvas === 'function') {
+          const canvas = await html2canvas(targetElement, {
+            scale: 2.6,
+            useCORS: true,
+            backgroundColor: null,
+            logging: false
+          });
+
+          const dataUrl = canvas.toDataURL('image/png');
+          const filename = (pageCard.style.display === 'flex') 
+            ? `${getCurrentBook().title}_${currentViewMode}.png` 
+            : `${getCurrentBook().title}_Cover.png`;
+
+          const link = document.createElement('a');
+          link.download = filename;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          previewImg.src = dataUrl;
+          savePreviewModal.style.display = 'flex';
+        } else {
+          alert('请在有网络环境下使用保存图片功能以加载渲染引擎。');
+        }
+      } catch (err) {
+        console.error('Save image failed:', err);
+        alert('生成图片失败，请检查浏览器权限。');
+      } finally {
+        btnSaveImage.innerHTML = '<span>📸</span><span>保存为图片</span>';
+        btnSaveImage.disabled = false;
+      }
+    });
+
+    btnClosePreviewModal.addEventListener('click', () => {
+      savePreviewModal.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
